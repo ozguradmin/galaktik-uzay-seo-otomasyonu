@@ -150,7 +150,13 @@ async function getSitemapUrls() {
       const hoursSinceLastRequest = lastRequest ? 
         (Date.now() - new Date(lastRequest).getTime()) / (1000 * 60 * 60) : 999;
       
-      if (hoursSinceLastRequest < 168 && lastRequest) {
+      // URL zaten indekslenmişse atla (verdict: "PASS" ve coverageState: "Submitted and indexed")
+      if (urlStatus?.verdict === 'PASS' && urlStatus?.coverageState === 'Submitted and indexed') {
+        skippedUrls++;
+        await logMessage(`⏭️ URL atlandı (zaten indekslenmiş): ${url}`);
+      } 
+      // Son istek 1 hafta içindeyse atla
+      else if (hoursSinceLastRequest < 168 && lastRequest) {
         skippedUrls++;
         await logMessage(`⏭️ URL atlandı (1 hafta beklemede): ${url}`);
       } else {
