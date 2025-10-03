@@ -26,48 +26,143 @@ const logContainer = {
   urlStatuses: new Map() // URL durumlarını kaydet
 };
 
-// URL durumlarını dosyadan yükle
+// URL durumlarını yükle (JSONBin.io veya dosya)
 async function loadUrlStatuses() {
   try {
-    // Persistent storage klasörünü kullan
-    const dataDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
-    const dataPath = path.join(dataDir, 'url-statuses.json');
+    // Önce JSONBin.io'dan yüklemeyi dene
+    if (process.env.JSONBIN_API_KEY && process.env.JSONBIN_BIN_ID) {
+      await loadFromJSONBin();
+      return;
+    }
     
-    // Klasörü oluştur (yoksa)
-    await fs.mkdir(dataDir, { recursive: true });
+    // Sonra persistent storage'dan yüklemeyi dene
+    if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+      await loadFromPersistentStorage();
+      return;
+    }
     
-    const data = await fs.readFile(dataPath, 'utf8');
-    const statuses = JSON.parse(data);
+    // Son olarak local dosyadan yükle
+    await loadFromLocalFile();
+    
+  } catch (error) {
+    console.log('📝 URL durumları yüklenemedi, sıfırdan başlanıyor');
+    console.log('💡 JSONBin.io veya persistent storage kurulmamış olabilir');
+  }
+}
+
+// JSONBin.io'dan yükle
+async function loadFromJSONBin() {
+  const response = await fetch(`https://api.jsonbin.io/v3/b/${process.env.JSONBIN_BIN_ID}/latest`, {
+    headers: {
+      'X-Master-Key': process.env.JSONBIN_API_KEY
+    }
+  });
+  
+  if (response.ok) {
+    const data = await response.json();
+    const statuses = data.record || {};
     
     // Map'e dönüştür
     for (const [url, status] of Object.entries(statuses)) {
       logContainer.urlStatuses.set(url, status);
     }
     
-    console.log(`✅ ${Object.keys(statuses).length} URL durumu persistent storage'dan yüklendi`);
-  } catch (error) {
-    console.log('📝 URL durumları dosyası bulunamadı, sıfırdan başlanıyor');
-    console.log('💡 Persistent storage kurulmamış olabilir veya ilk çalıştırma');
+    console.log(`✅ ${Object.keys(statuses).length} URL durumu JSONBin.io'dan yüklendi`);
+  } else {
+    throw new Error(`JSONBin.io API hatası: ${response.status}`);
   }
 }
 
-// URL durumlarını dosyaya kaydet
+// Persistent storage'dan yükle
+async function loadFromPersistentStorage() {
+  const dataDir = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+  const dataPath = path.join(dataDir, 'url-statuses.json');
+  
+  await fs.mkdir(dataDir, { recursive: true });
+  const data = await fs.readFile(dataPath, 'utf8');
+  const statuses = JSON.parse(data);
+  
+  // Map'e dönüştür
+  for (const [url, status] of Object.entries(statuses)) {
+    logContainer.urlStatuses.set(url, status);
+  }
+  
+  console.log(`✅ ${Object.keys(statuses).length} URL durumu persistent storage'dan yüklendi`);
+}
+
+// Local dosyadan yükle
+async function loadFromLocalFile() {
+  const dataPath = path.join(__dirname, 'url-statuses.json');
+  const data = await fs.readFile(dataPath, 'utf8');
+  const statuses = JSON.parse(data);
+  
+  // Map'e dönüştür
+  for (const [url, status] of Object.entries(statuses)) {
+    logContainer.urlStatuses.set(url, status);
+  }
+  
+  console.log(`✅ ${Object.keys(statuses).length} URL durumu local dosyadan yüklendi`);
+}
+
+// URL durumlarını kaydet (JSONBin.io veya dosya)
 async function saveUrlStatuses() {
   try {
-    // Persistent storage klasörünü kullan
-    const dataDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
-    const dataPath = path.join(dataDir, 'url-statuses.json');
-    
-    // Klasörü oluştur (yoksa)
-    await fs.mkdir(dataDir, { recursive: true });
-    
     const statuses = Object.fromEntries(logContainer.urlStatuses);
-    await fs.writeFile(dataPath, JSON.stringify(statuses, null, 2));
-    console.log(`💾 ${Object.keys(statuses).length} URL durumu persistent storage'a kaydedildi`);
+    
+    // Önce JSONBin.io'ya kaydetmeyi dene
+    if (process.env.JSONBIN_API_KEY && process.env.JSONBIN_BIN_ID) {
+      await saveToJSONBin(statuses);
+      return;
+    }
+    
+    // Sonra persistent storage'a kaydetmeyi dene
+    if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+      await saveToPersistentStorage(statuses);
+      return;
+    }
+    
+    // Son olarak local dosyaya kaydet
+    await saveToLocalFile(statuses);
+    
   } catch (error) {
-    console.error('❌ URL durumları persistent storage'a kaydedilemedi:', error.message);
-    console.log('💡 Persistent storage kurulmamış olabilir');
+    console.error('❌ URL durumları kaydedilemedi:', error.message);
+    console.log('💡 JSONBin.io veya persistent storage kurulmamış olabilir');
   }
+}
+
+// JSONBin.io'ya kaydet
+async function saveToJSONBin(statuses) {
+  const response = await fetch(`https://api.jsonbin.io/v3/b/${process.env.JSONBIN_BIN_ID}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': process.env.JSONBIN_API_KEY
+    },
+    body: JSON.stringify(statuses)
+  });
+  
+  if (response.ok) {
+    console.log(`💾 ${Object.keys(statuses).length} URL durumu JSONBin.io'ya kaydedildi`);
+  } else {
+    throw new Error(`JSONBin.io API hatası: ${response.status}`);
+  }
+}
+
+// Persistent storage'a kaydet
+async function saveToPersistentStorage(statuses) {
+  const dataDir = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+  const dataPath = path.join(dataDir, 'url-statuses.json');
+  
+  await fs.mkdir(dataDir, { recursive: true });
+  await fs.writeFile(dataPath, JSON.stringify(statuses, null, 2));
+  console.log(`💾 ${Object.keys(statuses).length} URL durumu persistent storage'a kaydedildi`);
+}
+
+// Local dosyaya kaydet
+async function saveToLocalFile(statuses) {
+  const dataPath = path.join(__dirname, 'url-statuses.json');
+  await fs.writeFile(dataPath, JSON.stringify(statuses, null, 2));
+  console.log(`💾 ${Object.keys(statuses).length} URL durumu local dosyaya kaydedildi`);
 }
 
 // Log fonksiyonu
