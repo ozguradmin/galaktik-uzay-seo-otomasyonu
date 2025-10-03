@@ -2,6 +2,8 @@ const express = require('express');
 const cron = require('node-cron');
 const cors = require('cors');
 const helmet = require('helmet');
+const fs = require('fs').promises;
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -23,6 +25,36 @@ const logContainer = {
   indexedUrls: new Set(),
   urlStatuses: new Map() // URL durumlarını kaydet
 };
+
+// URL durumlarını dosyadan yükle
+async function loadUrlStatuses() {
+  try {
+    const dataPath = path.join(__dirname, 'url-statuses.json');
+    const data = await fs.readFile(dataPath, 'utf8');
+    const statuses = JSON.parse(data);
+    
+    // Map'e dönüştür
+    for (const [url, status] of Object.entries(statuses)) {
+      logContainer.urlStatuses.set(url, status);
+    }
+    
+    console.log(`✅ ${Object.keys(statuses).length} URL durumu yüklendi`);
+  } catch (error) {
+    console.log('📝 URL durumları dosyası bulunamadı, sıfırdan başlanıyor');
+  }
+}
+
+// URL durumlarını dosyaya kaydet
+async function saveUrlStatuses() {
+  try {
+    const dataPath = path.join(__dirname, 'url-statuses.json');
+    const statuses = Object.fromEntries(logContainer.urlStatuses);
+    await fs.writeFile(dataPath, JSON.stringify(statuses, null, 2));
+    console.log(`💾 ${Object.keys(statuses).length} URL durumu kaydedildi`);
+  } catch (error) {
+    console.error('❌ URL durumları kaydedilemedi:', error.message);
+  }
+}
 
 // Log fonksiyonu
 async function logMessage(message) {
@@ -224,6 +256,9 @@ async function requestIndexing(url, accessToken) {
 async function runAutomation() {
   try {
     await logMessage('🚀 Otomasyon başlatıldı');
+    
+    // URL durumlarını yükle
+    await loadUrlStatuses();
     await sendTelegramMessage('🚀 SEO Otomasyonu başlatıldı!');
 
     // Sitemap URL'lerini al
@@ -290,6 +325,11 @@ async function runAutomation() {
             const currentStatus = logContainer.urlStatuses.get(url);
             currentStatus.lastIndexingRequest = new Date().toISOString();
             logContainer.urlStatuses.set(url, currentStatus);
+            
+            // Her 10 URL'de bir kaydet (güvenlik için)
+            if (processedCount % 10 === 0) {
+              await saveUrlStatuses();
+            }
           }
         } else if (hoursSinceLastRequest < 24 && lastRequest) {
           await logMessage(`⏳ URL 24 saat beklemede: ${url} (Son istek: ${Math.round(hoursSinceLastRequest)} saat önce)`);
@@ -347,6 +387,10 @@ async function runAutomation() {
     report += `\n🤖 Bu rapor otomatik olarak oluşturulmuştur.`;
     
     await sendTelegramMessage(report);
+    
+    // URL durumlarını kaydet
+    await saveUrlStatuses();
+    
     await logMessage('✅ Otomasyon tamamlandı');
     
   } catch (error) {

@@ -1,0 +1,15 @@
+# Environment variables
+.env
+
+# URL status data (contains sensitive information)
+url-statuses.json
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
