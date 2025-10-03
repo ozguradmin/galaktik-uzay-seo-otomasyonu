@@ -29,7 +29,13 @@ const logContainer = {
 // URL durumlarını dosyadan yükle
 async function loadUrlStatuses() {
   try {
-    const dataPath = path.join(__dirname, 'url-statuses.json');
+    // Persistent storage klasörünü kullan
+    const dataDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
+    const dataPath = path.join(dataDir, 'url-statuses.json');
+    
+    // Klasörü oluştur (yoksa)
+    await fs.mkdir(dataDir, { recursive: true });
+    
     const data = await fs.readFile(dataPath, 'utf8');
     const statuses = JSON.parse(data);
     
@@ -38,21 +44,29 @@ async function loadUrlStatuses() {
       logContainer.urlStatuses.set(url, status);
     }
     
-    console.log(`✅ ${Object.keys(statuses).length} URL durumu yüklendi`);
+    console.log(`✅ ${Object.keys(statuses).length} URL durumu persistent storage'dan yüklendi`);
   } catch (error) {
     console.log('📝 URL durumları dosyası bulunamadı, sıfırdan başlanıyor');
+    console.log('💡 Persistent storage kurulmamış olabilir veya ilk çalıştırma');
   }
 }
 
 // URL durumlarını dosyaya kaydet
 async function saveUrlStatuses() {
   try {
-    const dataPath = path.join(__dirname, 'url-statuses.json');
+    // Persistent storage klasörünü kullan
+    const dataDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
+    const dataPath = path.join(dataDir, 'url-statuses.json');
+    
+    // Klasörü oluştur (yoksa)
+    await fs.mkdir(dataDir, { recursive: true });
+    
     const statuses = Object.fromEntries(logContainer.urlStatuses);
     await fs.writeFile(dataPath, JSON.stringify(statuses, null, 2));
-    console.log(`💾 ${Object.keys(statuses).length} URL durumu kaydedildi`);
+    console.log(`💾 ${Object.keys(statuses).length} URL durumu persistent storage'a kaydedildi`);
   } catch (error) {
-    console.error('❌ URL durumları kaydedilemedi:', error.message);
+    console.error('❌ URL durumları persistent storage'a kaydedilemedi:', error.message);
+    console.log('💡 Persistent storage kurulmamış olabilir');
   }
 }
 
