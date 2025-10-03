@@ -257,18 +257,26 @@ async function runAutomation() {
         const indexingState = statusResult.indexingState;
         const verdict = statusResult.verdict;
         
-        // Sadece gerçekten indekslenmemiş URL'ler için istek gönder
+        // Son indexing request'ten bu yana 24 saat geçti mi kontrol et
+        const urlStatus = logContainer.urlStatuses.get(url);
+        const lastRequest = urlStatus?.lastIndexingRequest;
+        const hoursSinceLastRequest = lastRequest ? 
+          (Date.now() - new Date(lastRequest).getTime()) / (1000 * 60 * 60) : 999;
+        
+        // Sadece gerçekten indekslenmemiş VE 24 saat geçmiş URL'ler için istek gönder
         const needsIndexing = (
-          indexingState === 'NONE' || 
-          indexingState === 'UNKNOWN' ||
-          (indexingState === 'PARTIAL' && verdict === 'FAIL')
+          (indexingState === 'NONE' || 
+           indexingState === 'UNKNOWN' ||
+           (indexingState === 'PARTIAL' && verdict === 'FAIL')) &&
+          hoursSinceLastRequest >= 24
         );
         
         // URL durumunu kaydet
         logContainer.urlStatuses.set(url, {
           indexingState,
           verdict,
-          lastChecked: new Date().toISOString()
+          lastChecked: new Date().toISOString(),
+          lastIndexingRequest: logContainer.urlStatuses.get(url)?.lastIndexingRequest || null
         });
         
         if (needsIndexing) {
@@ -277,7 +285,14 @@ async function runAutomation() {
           if (success) {
             indexedCount++;
             logContainer.indexedUrls.add(url);
+            
+            // Indexing request tarihini kaydet
+            const currentStatus = logContainer.urlStatuses.get(url);
+            currentStatus.lastIndexingRequest = new Date().toISOString();
+            logContainer.urlStatuses.set(url, currentStatus);
           }
+        } else if (hoursSinceLastRequest < 24 && lastRequest) {
+          await logMessage(`⏳ URL 24 saat beklemede: ${url} (Son istek: ${Math.round(hoursSinceLastRequest)} saat önce)`);
         } else {
           await logMessage(`✅ URL zaten indekslenmiş: ${url} (Durum: ${indexingState})`);
         }
