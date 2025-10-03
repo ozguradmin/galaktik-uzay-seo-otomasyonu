@@ -1,0 +1,56 @@
+name = "galaktik-uzay-sitemap-sc-otomasyonu"
+main = "cloudflare_worker_indexing.js"
+compatibility_date = "2024-01-01"
+
+# Observability logs
+[observability.logs]
+enabled = true
+
+[vars]
+# OAuth2 Credentials (Google Search Console API)
+GOOGLE_CLIENT_ID = "your_google_client_id_here"
+GOOGLE_CLIENT_SECRET = "your_google_client_secret_here"
+GOOGLE_REDIRECT_URI = "https://galaktik-uzay-sitemap-sc-otomasyonu.ozgurkonsept20.workers.dev/auth/callback"
+GOOGLE_SCOPE = "https://www.googleapis.com/auth/webmasters"
+
+# Email (backup)
+SENDER_EMAIL = "noreply@galaktikuzay.com"
+RECEIVER_EMAIL = "ozgurkonsept20@gmail.com"
+
+# Telegram Bot Bilgileri
+TELEGRAM_BOT_TOKEN = "7301046008:AAGpYNjdY6hdjGiuGfTcfW168YpeTCLiANc"  # BotFather'dan alın
+TELEGRAM_CHAT_ID = "1104321474"  # Chat ID'niz (Özgür Güler)
+
+# KV Storage for logs
+[[kv_namespaces]]
+binding = "LOGS_KV"
+id = "912bd3182936485cba55dd1b6d9038b4"
+preview_id = "912bd3182936485cba55dd1b6d9038b4"
+
+# Cron triggers (v3.88.0+ için doğru format)
+[[triggers]]
+crons = [
+  "0 10 * * *", # Her gün 10:00 (Türkiye saatiyle)
+  "0 13 * * *", # Her gün 13:00 (Türkiye saatiyle)
+  "0 18 * * *", # Her gün 18:00 (Türkiye saatiyle)
+  "0 22 * * *"  # Her gün 22:00 (Türkiye saatiyle)
+]
+
+# Bildirim yapılandırması için seçenekler:
+
+# Seçenek 2: Mailchannels ile e-posta gönderme
+# [[send_email]]
+# from = "noreply@galaktikuzay.com"  # Kendi domain'inizden bir e-posta adresi
+
+# Seçenek 3: Slack Webhook
+# [vars]
+# SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+
+# Seçenek 4: WhatsApp Business API
+# [vars]
+# WHATSAPP_TOKEN = "your-whatsapp-business-token"
+# WHATSAPP_PHONE_NUMBER = "+90xxxxxxxxxx"
+
+# Seçenek 5: Gmail ile gönderme (App Password gerekli)
+# [vars]
+# GMAIL_APP_PASSWORD = "your-gmail-app-password"
