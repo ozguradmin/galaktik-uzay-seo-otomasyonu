@@ -495,6 +495,19 @@ app.get('/status', (req, res) => {
   });
 });
 
+// OAuth başlatma endpoint'i
+app.get('/auth/login', (req, res) => {
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
+    `redirect_uri=${encodeURIComponent('https://galaktik-uzay-seo-otomasyonu-production.up.railway.app/auth/callback')}&` +
+    `scope=${encodeURIComponent('https://www.googleapis.com/auth/webmasters')}&` +
+    `response_type=code&` +
+    `access_type=offline&` +
+    `prompt=consent`;
+  
+  res.redirect(authUrl);
+});
+
 // OAuth callback endpoint
 app.get('/auth/callback', async (req, res) => {
   try {
