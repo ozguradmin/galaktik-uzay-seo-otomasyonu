@@ -8,7 +8,7 @@ const PORT = 4343;
 const CLIENT_ID = '747391924423-vg8sl7bndfvl1sr3pvkk5pqe38pktf15.apps.googleusercontent.com';
 const CLIENT_SECRET = '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';
 const REDIRECT_URI = 'https://galaktik-uzay-seo-otomasyonu-production.up.railway.app/auth/callback';
-const SCOPE = 'https://www.googleapis.com/auth/webmasters';
+const SCOPE = 'https://www.googleapis.com/auth/webmasters https://www.googleapis.com/auth/indexing';
 
 const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
