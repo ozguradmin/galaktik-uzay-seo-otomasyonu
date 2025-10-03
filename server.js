@@ -674,24 +674,29 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
-// Cron job'ları - günde 4 kez çalışacak
-cron.schedule('0 6 * * *', () => {
-  logMessage('⏰ Otomatik otomasyon başlatıldı (06:00)');
+// Cron job'ları - günde 5 kez çalışacak
+cron.schedule('5 9 * * *', () => {
+  logMessage('⏰ Otomatik otomasyon başlatıldı (09:05)');
   runAutomation();
 });
 
-cron.schedule('0 12 * * *', () => {
-  logMessage('⏰ Otomatik otomasyon başlatıldı (12:00)');
+cron.schedule('5 13 * * *', () => {
+  logMessage('⏰ Otomatik otomasyon başlatıldı (13:05)');
   runAutomation();
 });
 
-cron.schedule('0 18 * * *', () => {
-  logMessage('⏰ Otomatik otomasyon başlatıldı (18:00)');
+cron.schedule('5 18 * * *', () => {
+  logMessage('⏰ Otomatik otomasyon başlatıldı (18:05)');
   runAutomation();
 });
 
-cron.schedule('0 0 * * *', () => {
-  logMessage('⏰ Otomatik otomasyon başlatıldı (00:00)');
+cron.schedule('26 20 * * *', () => {
+  logMessage('⏰ Otomatik otomasyon başlatıldı (20:26)');
+  runAutomation();
+});
+
+cron.schedule('5 22 * * *', () => {
+  logMessage('⏰ Otomatik otomasyon başlatıldı (22:05)');
   runAutomation();
 });
 
@@ -700,7 +705,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Galaktik Uzay SEO Otomasyonu başlatıldı!`);
   console.log(`📡 Port: ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
-  console.log(`⏰ Cron job'lar aktif - günde 4 kez çalışacak`);
+  console.log(`⏰ Cron job'lar aktif - günde 5 kez çalışacak (09:05, 13:05, 18:05, 20:26, 22:05)`);
 });
 
 // Graceful shutdown
