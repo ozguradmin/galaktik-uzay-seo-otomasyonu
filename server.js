@@ -241,9 +241,9 @@ async function checkUrlIndexingStatus(url, accessToken) {
     }
 
     return {
-      indexingState: data.indexingResult?.indexingState || 'UNKNOWN',
-      verdict: data.indexingResult?.verdict || 'UNKNOWN',
-      coverageState: data.indexingResult?.coverageState || 'UNKNOWN'
+      indexingState: data.inspectionResult?.indexStatusResult?.indexingState || 'UNKNOWN',
+      verdict: data.inspectionResult?.indexStatusResult?.verdict || 'UNKNOWN',
+      coverageState: data.inspectionResult?.indexStatusResult?.coverageState || 'UNKNOWN'
     };
   } catch (error) {
     await logMessage(`URL denetim hatası: ${error.message}`);
@@ -322,11 +322,12 @@ async function runAutomation() {
         }
         
         // API response detaylarını logla
-        await logMessage(`🔍 URL durumu alındı: ${url} - Durum: ${statusResult.indexingState}, Verdict: ${statusResult.verdict}`);
+        await logMessage(`🔍 URL durumu alındı: ${url} - IndexingState: ${statusResult.indexingState}, Verdict: ${statusResult.verdict}, CoverageState: ${statusResult.coverageState}`);
         
         // URL durumunu kontrol et
         const indexingState = statusResult.indexingState;
         const verdict = statusResult.verdict;
+        const coverageState = statusResult.coverageState;
         
         // Son indexing request'ten bu yana 24 saat geçti mi kontrol et
         const urlStatus = logContainer.urlStatuses.get(url);
@@ -336,9 +337,10 @@ async function runAutomation() {
         
         // Sadece gerçekten indekslenmemiş VE 1 hafta geçmiş URL'ler için istek gönder
         const needsIndexing = (
-          (indexingState === 'NONE' || 
-           indexingState === 'UNKNOWN' ||
-           (indexingState === 'PARTIAL' && verdict === 'FAIL')) &&
+          (verdict === 'FAIL' || 
+           verdict === 'UNKNOWN' ||
+           coverageState === 'Not indexed' ||
+           coverageState === 'Unknown') &&
           hoursSinceLastRequest >= 168 // 1 hafta = 7 gün × 24 saat = 168 saat
         );
         
@@ -346,12 +348,13 @@ async function runAutomation() {
         logContainer.urlStatuses.set(url, {
           indexingState,
           verdict,
+          coverageState,
           lastChecked: new Date().toISOString(),
           lastIndexingRequest: logContainer.urlStatuses.get(url)?.lastIndexingRequest || null
         });
         
         if (needsIndexing) {
-          await logMessage(`📤 İndeksleme isteği gönderiliyor: ${url} (Durum: ${indexingState}, Verdict: ${verdict})`);
+          await logMessage(`📤 İndeksleme isteği gönderiliyor: ${url} (Verdict: ${verdict}, CoverageState: ${coverageState})`);
           const success = await requestIndexing(url, accessToken);
           if (success) {
             indexedCount++;
@@ -371,9 +374,9 @@ async function runAutomation() {
             await logMessage(`❌ İndeksleme isteği BAŞARISIZ: ${url} (Google API hatası)`);
           }
         } else if (hoursSinceLastRequest < 168 && lastRequest) {
-          await logMessage(`⏳ URL 1 hafta beklemede: ${url} (Son istek: ${Math.round(hoursSinceLastRequest)} saat önce, Durum: ${indexingState})`);
+          await logMessage(`⏳ URL 1 hafta beklemede: ${url} (Son istek: ${Math.round(hoursSinceLastRequest)} saat önce, Verdict: ${verdict}, CoverageState: ${coverageState})`);
         } else {
-          await logMessage(`✅ URL zaten indekslenmiş: ${url} (Durum: ${indexingState}, Verdict: ${verdict})`);
+          await logMessage(`✅ URL zaten indekslenmiş: ${url} (Verdict: ${verdict}, CoverageState: ${coverageState})`);
         }
         
         processedCount++;
@@ -695,28 +698,31 @@ async function runQuickAutomation() {
       }
       
       // API response detaylarını logla
-      await logMessage(`🔍 URL durumu alındı: ${url} - Durum: ${statusResult.indexingState}, Verdict: ${statusResult.verdict}`);
+      await logMessage(`🔍 URL durumu alındı: ${url} - IndexingState: ${statusResult.indexingState}, Verdict: ${statusResult.verdict}, CoverageState: ${statusResult.coverageState}`);
       
       const indexingState = statusResult.indexingState;
       const verdict = statusResult.verdict;
+      const coverageState = statusResult.coverageState;
       
       // Sadece gerçekten indekslenmemiş URL'ler için istek gönder
       const needsIndexing = (
-        indexingState === 'NONE' || 
-        indexingState === 'UNKNOWN' ||
-        (indexingState === 'PARTIAL' && verdict === 'FAIL')
+        verdict === 'FAIL' || 
+        verdict === 'UNKNOWN' ||
+        coverageState === 'Not indexed' ||
+        coverageState === 'Unknown'
       );
       
       // URL durumunu kaydet
       logContainer.urlStatuses.set(url, {
         indexingState,
         verdict,
+        coverageState,
         lastChecked: new Date().toISOString(),
         lastIndexingRequest: logContainer.urlStatuses.get(url)?.lastIndexingRequest || null
       });
       
       if (needsIndexing) {
-        await logMessage(`📤 İndeksleme isteği gönderiliyor: ${url} (Durum: ${indexingState}, Verdict: ${verdict})`);
+        await logMessage(`📤 İndeksleme isteği gönderiliyor: ${url} (Verdict: ${verdict}, CoverageState: ${coverageState})`);
         const success = await requestIndexing(url, accessToken);
         if (success) {
           indexedCount++;
@@ -731,7 +737,7 @@ async function runQuickAutomation() {
           await logMessage(`❌ İndeksleme isteği BAŞARISIZ: ${url} (Google API hatası)`);
         }
       } else {
-        await logMessage(`✅ URL zaten indekslenmiş: ${url} (Durum: ${indexingState}, Verdict: ${verdict})`);
+        await logMessage(`✅ URL zaten indekslenmiş: ${url} (Verdict: ${verdict}, CoverageState: ${coverageState})`);
       }
       
       processedCount++;
