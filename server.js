@@ -62,14 +62,21 @@ async function loadFromJSONBin() {
     const data = await response.json();
     const statuses = data.record || {};
     
+    // _init verisini filtrele
+    const filteredStatuses = Object.fromEntries(
+      Object.entries(statuses).filter(([key]) => key !== '_init')
+    );
+    
     // Map'e dönüştür
-    for (const [url, status] of Object.entries(statuses)) {
+    for (const [url, status] of Object.entries(filteredStatuses)) {
       logContainer.urlStatuses.set(url, status);
     }
     
-    console.log(`✅ ${Object.keys(statuses).length} URL durumu JSONBin.io'dan yüklendi`);
+    console.log(`✅ ${Object.keys(filteredStatuses).length} URL durumu JSONBin.io'dan yüklendi`);
   } else {
-    throw new Error(`JSONBin.io API hatası: ${response.status}`);
+    const errorText = await response.text();
+    console.error(`JSONBin.io API hatası: ${response.status} - ${errorText}`);
+    throw new Error(`JSONBin.io API hatası: ${response.status} - ${errorText}`);
   }
 }
 
@@ -132,6 +139,17 @@ async function saveUrlStatuses() {
 
 // JSONBin.io'ya kaydet
 async function saveToJSONBin(statuses) {
+  // Eğer hiç veri yoksa, örnek veri ekle
+  if (Object.keys(statuses).length === 0) {
+    statuses = {
+      "_init": {
+        "message": "Galaktik Uzay SEO Otomasyonu başlatıldı",
+        "timestamp": new Date().toISOString(),
+        "version": "1.0.0"
+      }
+    };
+  }
+  
   const response = await fetch(`https://api.jsonbin.io/v3/b/${process.env.JSONBIN_BIN_ID}`, {
     method: 'PUT',
     headers: {
@@ -144,7 +162,9 @@ async function saveToJSONBin(statuses) {
   if (response.ok) {
     console.log(`💾 ${Object.keys(statuses).length} URL durumu JSONBin.io'ya kaydedildi`);
   } else {
-    throw new Error(`JSONBin.io API hatası: ${response.status}`);
+    const errorText = await response.text();
+    console.error(`JSONBin.io API hatası: ${response.status} - ${errorText}`);
+    throw new Error(`JSONBin.io API hatası: ${response.status} - ${errorText}`);
   }
 }
 
