@@ -561,14 +561,26 @@ app.get('/logs/clear', (req, res) => {
 });
 
 app.get('/status', (req, res) => {
+  const uptime = process.uptime();
+  const memoryUsage = process.memoryUsage();
+  const turkeyTime = new Date(new Date().getTime() + (3 * 60 * 60 * 1000));
+  
   res.json({
     status: 'active',
     platform: 'Railway.app',
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
+    uptime: uptime,
+    memory: memoryUsage,
     logs: logContainer.logs.length,
     indexedUrls: logContainer.indexedUrls.size,
-    timestamp: new Date().toISOString()
+    utcTime: new Date().toISOString(),
+    turkeyTime: turkeyTime.toISOString(),
+    nextRunTimes: [
+      '09:05 Türkiye (06:05 UTC)',
+      '13:05 Türkiye (10:05 UTC)', 
+      '18:05 Türkiye (15:05 UTC)',
+      '20:30 Türkiye (17:30 UTC)',
+      '22:05 Türkiye (19:05 UTC)'
+    ]
   });
 });
 
@@ -674,38 +686,55 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
-// Cron job'ları - günde 5 kez çalışacak
-cron.schedule('5 9 * * *', () => {
-  logMessage('⏰ Otomatik otomasyon başlatıldı (09:05)');
+// Cron job'ları - Türkiye saati (UTC+3) için günde 5 kez çalışacak
+cron.schedule('5 6 * * *', () => {  // 09:05 Türkiye saati = 06:05 UTC
+  logMessage('⏰ Otomatik otomasyon başlatıldı (09:05 Türkiye)');
   runAutomation();
 });
 
-cron.schedule('5 13 * * *', () => {
-  logMessage('⏰ Otomatik otomasyon başlatıldı (13:05)');
+cron.schedule('5 10 * * *', () => {  // 13:05 Türkiye saati = 10:05 UTC
+  logMessage('⏰ Otomatik otomasyon başlatıldı (13:05 Türkiye)');
   runAutomation();
 });
 
-cron.schedule('5 18 * * *', () => {
-  logMessage('⏰ Otomatik otomasyon başlatıldı (18:05)');
+cron.schedule('5 15 * * *', () => {  // 18:05 Türkiye saati = 15:05 UTC
+  logMessage('⏰ Otomatik otomasyon başlatıldı (18:05 Türkiye)');
   runAutomation();
 });
 
-cron.schedule('26 20 * * *', () => {
-  logMessage('⏰ Otomatik otomasyon başlatıldı (20:26)');
+cron.schedule('30 17 * * *', () => {  // 20:30 Türkiye saati = 17:30 UTC
+  logMessage('⏰ Otomatik otomasyon başlatıldı (20:30 Türkiye)');
   runAutomation();
 });
 
-cron.schedule('5 22 * * *', () => {
-  logMessage('⏰ Otomatik otomasyon başlatıldı (22:05)');
+cron.schedule('5 19 * * *', () => {  // 22:05 Türkiye saati = 19:05 UTC
+  logMessage('⏰ Otomatik otomasyon başlatıldı (22:05 Türkiye)');
   runAutomation();
 });
+
+// Saat kontrol sistemi - 20 saniyede bir çalışacak
+setInterval(() => {
+  const now = new Date();
+  const turkeyTime = new Date(now.getTime() + (3 * 60 * 60 * 1000)); // UTC+3
+  const currentTime = turkeyTime.toLocaleTimeString('tr-TR', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    timeZone: 'Europe/Istanbul'
+  });
+  
+  // Debug için her 5 dakikada bir saat yazdır
+  if (now.getSeconds() === 0 && now.getMinutes() % 5 === 0) {
+    console.log(`🕐 Şu anki Türkiye saati: ${currentTime}`);
+  }
+}, 20000); // 20 saniyede bir
 
 // Server başlatma
 app.listen(PORT, () => {
   console.log(`🚀 Galaktik Uzay SEO Otomasyonu başlatıldı!`);
   console.log(`📡 Port: ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
-  console.log(`⏰ Cron job'lar aktif - günde 5 kez çalışacak (09:05, 13:05, 18:05, 20:26, 22:05)`);
+  console.log(`⏰ Cron job'lar aktif - günde 5 kez çalışacak (09:05, 13:05, 18:05, 20:30, 22:05 Türkiye saati)`);
+  console.log(`🕐 Saat kontrolü: 20 saniyede bir aktif`);
 });
 
 // Graceful shutdown
