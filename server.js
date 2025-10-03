@@ -20,7 +20,8 @@ const SITE_URL = 'https://galaktikuzay.com/';
 // Global log container
 const logContainer = {
   logs: [],
-  indexedUrls: new Set()
+  indexedUrls: new Set(),
+  urlStatuses: new Map() // URL durumlarını kaydet
 };
 
 // Log fonksiyonu
@@ -252,16 +253,33 @@ async function runAutomation() {
           continue;
         }
         
-        const nonIndexableVerdicts = ['PASS', 'PARTIAL'];
-        if (!nonIndexableVerdicts.includes(statusResult.indexingState)) {
-          await logMessage(`📤 İndeksleme isteği gönderiliyor: ${url}`);
+        // URL durumunu kontrol et
+        const indexingState = statusResult.indexingState;
+        const verdict = statusResult.verdict;
+        
+        // Sadece gerçekten indekslenmemiş URL'ler için istek gönder
+        const needsIndexing = (
+          indexingState === 'NONE' || 
+          indexingState === 'UNKNOWN' ||
+          (indexingState === 'PARTIAL' && verdict === 'FAIL')
+        );
+        
+        // URL durumunu kaydet
+        logContainer.urlStatuses.set(url, {
+          indexingState,
+          verdict,
+          lastChecked: new Date().toISOString()
+        });
+        
+        if (needsIndexing) {
+          await logMessage(`📤 İndeksleme isteği gönderiliyor: ${url} (Durum: ${indexingState})`);
           const success = await requestIndexing(url, accessToken);
           if (success) {
             indexedCount++;
             logContainer.indexedUrls.add(url);
           }
         } else {
-          await logMessage(`✅ URL zaten indekslenmiş: ${url}`);
+          await logMessage(`✅ URL zaten indekslenmiş: ${url} (Durum: ${indexingState})`);
         }
         
         processedCount++;
