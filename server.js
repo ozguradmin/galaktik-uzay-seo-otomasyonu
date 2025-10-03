@@ -231,6 +231,9 @@ async function checkUrlIndexingStatus(url, accessToken) {
       await logMessage(`API yanıtı (ilk 200 karakter): ${responseText.substring(0, 200)}`);
       return { error: `JSON parse hatası: ${parseError.message}` };
     }
+    
+    // Google API yanıtını detaylı logla
+    await logMessage(`📊 Google Search Console API yanıtı: ${JSON.stringify(data, null, 2)}`);
 
     if (!response.ok) {
       await logMessage(`URL denetim hatası: ${response.status} ${responseText}`);
@@ -251,28 +254,33 @@ async function checkUrlIndexingStatus(url, accessToken) {
 // URL indexing isteği gönderme
 async function requestIndexing(url, accessToken) {
   try {
-    const response = await fetch('https://searchconsole.googleapis.com/v1/urlInspection/index:inspect', {
+    const requestBody = {
+      url: url,
+      type: 'URL_UPDATED'
+    };
+    
+    await logMessage(`📤 Google Indexing API'ye gönderilen istek: ${JSON.stringify(requestBody)}`);
+    
+    const response = await fetch('https://indexing.googleapis.com/v3/urlNotifications:publish', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        inspectionUrl: url,
-        siteUrl: SITE_URL
-      }),
+      body: JSON.stringify(requestBody)
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      await logMessage(`İndeksleme isteği hatası: ${response.status} ${errorText}`);
+    const responseText = await response.text();
+    
+    if (response.ok) {
+      await logMessage(`✅ Google Indexing API başarılı yanıt: ${response.status} - ${responseText}`);
+      return true;
+    } else {
+      await logMessage(`❌ Google Indexing API hata yanıtı: ${response.status} - ${responseText}`);
       return false;
     }
-
-    await logMessage(`✅ İndeksleme isteği gönderildi: ${url}`);
-    return true;
   } catch (error) {
-    await logMessage(`İndeksleme isteği hatası: ${error.message}`);
+    await logMessage(`❌ Google Indexing API bağlantı hatası: ${error.message}`);
     return false;
   }
 }
@@ -613,6 +621,133 @@ app.get('/status', (req, res) => {
     ]
   });
 });
+
+// Manuel test endpoint'i
+app.post('/test/run', async (req, res) => {
+  try {
+    const testType = req.body?.type || 'full';
+    await logMessage(`🧪 Manuel test başlatıldı (${testType === 'quick' ? 'Hızlı' : 'Tam'} test)`);
+    
+    if (testType === 'quick') {
+      await runQuickAutomation();
+    } else {
+      runAutomation();
+    }
+    
+    res.send(`Test başlatıldı! (${testType === 'quick' ? 'Hızlı' : 'Tam'}) Logları kontrol edin.`);
+  } catch (error) {
+    await logMessage(`Manuel test hatası: ${error.message}`);
+    res.status(500).send(`Test hatası: ${error.message}`);
+  }
+});
+
+// Hızlı otomasyon fonksiyonu (sadece gereken URL'ler)
+async function runQuickAutomation() {
+  try {
+    await logMessage('⚡ Hızlı otomasyon başlatıldı');
+    
+    // URL durumlarını yükle
+    await loadUrlStatuses();
+    await sendTelegramMessage('⚡ Hızlı SEO Otomasyonu başlatıldı!');
+
+    // Sitemap URL'lerini al
+    const urls = await getSitemapUrls();
+    if (urls.length === 0) {
+      await logMessage('❌ Sitemap\'ten URL alınamadı. İşlem sonlandırılıyor.');
+      await sendTelegramMessage('❌ Hızlı otomasyon: Sitemap\'ten URL alınamadı.');
+      return;
+    }
+
+    // Google access token al
+    const accessToken = await getGoogleAccessToken();
+    if (!accessToken) {
+      await logMessage('❌ Google access token alınamadı');
+      await sendTelegramMessage('❌ Hızlı otomasyon: Google token alınamadı.');
+      return;
+    }
+
+    await logMessage('✅ Google access token başarıyla alındı');
+
+    let indexedCount = 0;
+    let processedCount = 0;
+
+    // Sadece gereken URL'leri işle
+    for (const url of urls) {
+      const urlStatus = logContainer.urlStatuses.get(url);
+      const lastRequest = urlStatus?.lastIndexingRequest;
+      const hoursSinceLastRequest = lastRequest ? 
+        (Date.now() - new Date(lastRequest).getTime()) / (1000 * 60 * 60) : 999;
+      
+      // 1 hafta içinde istek gönderilmişse atla
+      if (hoursSinceLastRequest < 168 && lastRequest) {
+        await logMessage(`⏭️ URL atlandı (1 hafta beklemede): ${url}`);
+        continue;
+      }
+
+      await logMessage(`🔍 URL kontrol ediliyor: ${url}`);
+      
+      // URL indexing durumunu kontrol et
+      const statusResult = await checkUrlIndexingStatus(url, accessToken);
+      
+      if (statusResult.error) {
+        await logMessage(`❌ URL kontrol hatası: ${statusResult.error}`);
+        continue;
+      }
+      
+      // API response detaylarını logla
+      await logMessage(`🔍 URL durumu alındı: ${url} - Durum: ${statusResult.indexingState}, Verdict: ${statusResult.verdict}`);
+      
+      const indexingState = statusResult.indexingState;
+      const verdict = statusResult.verdict;
+      
+      // Sadece gerçekten indekslenmemiş URL'ler için istek gönder
+      const needsIndexing = (
+        indexingState === 'NONE' || 
+        indexingState === 'UNKNOWN' ||
+        (indexingState === 'PARTIAL' && verdict === 'FAIL')
+      );
+      
+      // URL durumunu kaydet
+      logContainer.urlStatuses.set(url, {
+        indexingState,
+        verdict,
+        lastChecked: new Date().toISOString(),
+        lastIndexingRequest: logContainer.urlStatuses.get(url)?.lastIndexingRequest || null
+      });
+      
+      if (needsIndexing) {
+        await logMessage(`📤 İndeksleme isteği gönderiliyor: ${url} (Durum: ${indexingState}, Verdict: ${verdict})`);
+        const success = await requestIndexing(url, accessToken);
+        if (success) {
+          indexedCount++;
+          logContainer.indexedUrls.add(url);
+          await logMessage(`✅ İndeksleme isteği BAŞARILI: ${url} (Google'a gönderildi)`);
+          
+          // Indexing request tarihini kaydet
+          const currentStatus = logContainer.urlStatuses.get(url);
+          currentStatus.lastIndexingRequest = new Date().toISOString();
+          logContainer.urlStatuses.set(url, currentStatus);
+        } else {
+          await logMessage(`❌ İndeksleme isteği BAŞARISIZ: ${url} (Google API hatası)`);
+        }
+      } else {
+        await logMessage(`✅ URL zaten indekslenmiş: ${url} (Durum: ${indexingState}, Verdict: ${verdict})`);
+      }
+      
+      processedCount++;
+    }
+
+    // URL durumlarını kaydet
+    await saveUrlStatuses();
+    
+    await logMessage(`⚡ Hızlı otomasyon tamamlandı: ${indexedCount} URL indeksleme isteği gönderildi`);
+    await sendTelegramMessage(`⚡ Hızlı otomasyon tamamlandı! ${indexedCount} URL indeksleme isteği gönderildi.`);
+    
+  } catch (error) {
+    await logMessage(`❌ Hızlı otomasyon hatası: ${error.message}`);
+    await sendTelegramMessage(`❌ Hızlı otomasyon hatası: ${error.message}`);
+  }
+}
 
 // OAuth başlatma endpoint'i
 app.get('/auth/login', (req, res) => {
