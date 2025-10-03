@@ -137,6 +137,31 @@ async function getSitemapUrls() {
     }
     
     await logMessage(`📊 Toplam ${allUrls.length} adet URL bulundu`);
+    
+    // Hızlı kontrol: URL durumlarını önce kontrol et
+    let skippedUrls = 0;
+    let needProcessingUrls = [];
+    
+    await logMessage(`🔍 Hızlı URL durum kontrolü başlatılıyor...`);
+    
+    for (const url of allUrls) {
+      const urlStatus = logContainer.urlStatuses.get(url);
+      const lastRequest = urlStatus?.lastIndexingRequest;
+      const hoursSinceLastRequest = lastRequest ? 
+        (Date.now() - new Date(lastRequest).getTime()) / (1000 * 60 * 60) : 999;
+      
+      if (hoursSinceLastRequest < 168 && lastRequest) {
+        skippedUrls++;
+        await logMessage(`⏭️ URL atlandı (1 hafta beklemede): ${url}`);
+      } else {
+        needProcessingUrls.push(url);
+      }
+    }
+    
+    await logMessage(`📊 Hızlı kontrol tamamlandı: ${skippedUrls} URL atlandı, ${needProcessingUrls.length} URL işlenecek`);
+    
+    // Sadece işlenmesi gereken URL'leri kullan
+    allUrls = needProcessingUrls;
     return allUrls;
   } catch (error) {
     await logMessage(`Sitemap alma hatası: ${error.message}`);
@@ -288,6 +313,9 @@ async function runAutomation() {
           continue;
         }
         
+        // API response detaylarını logla
+        await logMessage(`🔍 URL durumu alındı: ${url} - Durum: ${statusResult.indexingState}, Verdict: ${statusResult.verdict}`);
+        
         // URL durumunu kontrol et
         const indexingState = statusResult.indexingState;
         const verdict = statusResult.verdict;
@@ -298,12 +326,12 @@ async function runAutomation() {
         const hoursSinceLastRequest = lastRequest ? 
           (Date.now() - new Date(lastRequest).getTime()) / (1000 * 60 * 60) : 999;
         
-        // Sadece gerçekten indekslenmemiş VE 24 saat geçmiş URL'ler için istek gönder
+        // Sadece gerçekten indekslenmemiş VE 1 hafta geçmiş URL'ler için istek gönder
         const needsIndexing = (
           (indexingState === 'NONE' || 
            indexingState === 'UNKNOWN' ||
            (indexingState === 'PARTIAL' && verdict === 'FAIL')) &&
-          hoursSinceLastRequest >= 24
+          hoursSinceLastRequest >= 168 // 1 hafta = 7 gün × 24 saat = 168 saat
         );
         
         // URL durumunu kaydet
@@ -315,11 +343,12 @@ async function runAutomation() {
         });
         
         if (needsIndexing) {
-          await logMessage(`📤 İndeksleme isteği gönderiliyor: ${url} (Durum: ${indexingState})`);
+          await logMessage(`📤 İndeksleme isteği gönderiliyor: ${url} (Durum: ${indexingState}, Verdict: ${verdict})`);
           const success = await requestIndexing(url, accessToken);
           if (success) {
             indexedCount++;
             logContainer.indexedUrls.add(url);
+            await logMessage(`✅ İndeksleme isteği BAŞARILI: ${url} (Google'a gönderildi)`);
             
             // Indexing request tarihini kaydet
             const currentStatus = logContainer.urlStatuses.get(url);
@@ -330,11 +359,13 @@ async function runAutomation() {
             if (processedCount % 10 === 0) {
               await saveUrlStatuses();
             }
+          } else {
+            await logMessage(`❌ İndeksleme isteği BAŞARISIZ: ${url} (Google API hatası)`);
           }
-        } else if (hoursSinceLastRequest < 24 && lastRequest) {
-          await logMessage(`⏳ URL 24 saat beklemede: ${url} (Son istek: ${Math.round(hoursSinceLastRequest)} saat önce)`);
+        } else if (hoursSinceLastRequest < 168 && lastRequest) {
+          await logMessage(`⏳ URL 1 hafta beklemede: ${url} (Son istek: ${Math.round(hoursSinceLastRequest)} saat önce, Durum: ${indexingState})`);
         } else {
-          await logMessage(`✅ URL zaten indekslenmiş: ${url} (Durum: ${indexingState})`);
+          await logMessage(`✅ URL zaten indekslenmiş: ${url} (Durum: ${indexingState}, Verdict: ${verdict})`);
         }
         
         processedCount++;
@@ -578,7 +609,6 @@ app.get('/status', (req, res) => {
       '09:05 Türkiye (06:05 UTC)',
       '13:05 Türkiye (10:05 UTC)', 
       '18:05 Türkiye (15:05 UTC)',
-      '20:30 Türkiye (17:30 UTC)',
       '22:05 Türkiye (19:05 UTC)'
     ]
   });
@@ -702,10 +732,6 @@ cron.schedule('5 15 * * *', () => {  // 18:05 Türkiye saati = 15:05 UTC
   runAutomation();
 });
 
-cron.schedule('30 17 * * *', () => {  // 20:30 Türkiye saati = 17:30 UTC
-  logMessage('⏰ Otomatik otomasyon başlatıldı (20:30 Türkiye)');
-  runAutomation();
-});
 
 cron.schedule('5 19 * * *', () => {  // 22:05 Türkiye saati = 19:05 UTC
   logMessage('⏰ Otomatik otomasyon başlatıldı (22:05 Türkiye)');
@@ -733,7 +759,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Galaktik Uzay SEO Otomasyonu başlatıldı!`);
   console.log(`📡 Port: ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
-  console.log(`⏰ Cron job'lar aktif - günde 5 kez çalışacak (09:05, 13:05, 18:05, 20:30, 22:05 Türkiye saati)`);
+  console.log(`⏰ Cron job'lar aktif - günde 4 kez çalışacak (09:05, 13:05, 18:05, 22:05 Türkiye saati)`);
   console.log(`🕐 Saat kontrolü: 20 saniyede bir aktif`);
 });
 
