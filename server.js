@@ -339,8 +339,12 @@ async function runAutomation() {
         const needsIndexing = (
           (verdict === 'FAIL' || 
            verdict === 'UNKNOWN' ||
+           verdict === 'NEUTRAL' ||
            coverageState === 'Not indexed' ||
-           coverageState === 'Unknown') &&
+           coverageState === 'Unknown' ||
+           coverageState === 'URL is unknown to Google' ||
+           coverageState === 'Discovered - currently not indexed' ||
+           coverageState === 'Crawled - currently not indexed') &&
           hoursSinceLastRequest >= 168 // 1 hafta = 7 gün × 24 saat = 168 saat
         );
         
@@ -708,8 +712,12 @@ async function runQuickAutomation() {
       const needsIndexing = (
         verdict === 'FAIL' || 
         verdict === 'UNKNOWN' ||
+        verdict === 'NEUTRAL' ||
         coverageState === 'Not indexed' ||
-        coverageState === 'Unknown'
+        coverageState === 'Unknown' ||
+        coverageState === 'URL is unknown to Google' ||
+        coverageState === 'Discovered - currently not indexed' ||
+        coverageState === 'Crawled - currently not indexed'
       );
       
       // URL durumunu kaydet
