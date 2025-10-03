@@ -2,12 +2,12 @@ const express = require('express');
 const { google } = require('googleapis');
 
 const app = express();
-const PORT = 3001;
+const PORT = 4343;
 
 // OAuth2 credentials
-const CLIENT_ID = 'your_google_client_id_here';
-const CLIENT_SECRET = 'your_google_client_secret_here';
-const REDIRECT_URI = 'http://localhost:3001/auth/callback';
+const CLIENT_ID = '747391924423-vg8sl7bndfvl1sr3pvkk5pqe38pktf15.apps.googleusercontent.com';
+const CLIENT_SECRET = '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';
+const REDIRECT_URI = 'https://galaktik-uzay-seo-otomasyonu-production.up.railway.app/auth/callback';
 const SCOPE = 'https://www.googleapis.com/auth/webmasters';
 
 const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);

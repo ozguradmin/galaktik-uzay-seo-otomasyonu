@@ -495,6 +495,95 @@ app.get('/status', (req, res) => {
   });
 });
 
+// OAuth callback endpoint
+app.get('/auth/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+    
+    if (!code) {
+      return res.status(400).send('Authorization code bulunamadı');
+    }
+    
+    // Refresh token'ı al
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        code: code,
+        grant_type: 'authorization_code',
+        redirect_uri: 'https://galaktik-uzay-seo-otomasyonu-production.up.railway.app/auth/callback'
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(400).send(`Token alma hatası: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Refresh Token Alındı</title>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+          .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: #34a853; color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; text-align: center; }
+          .token-box { background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #34a853; margin: 20px 0; font-family: monospace; word-break: break-all; }
+          .btn { background: #4285f4; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; text-decoration: none; display: inline-block; }
+          .btn:hover { background: #3367d6; }
+          .instructions { background: #e8f0fe; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>✅ Refresh Token Başarıyla Alındı!</h1>
+          </div>
+          
+          <div class="instructions">
+            <h3>📋 Sıradaki Adımlar:</h3>
+            <ol>
+              <li>Aşağıdaki refresh token'ı kopyalayın</li>
+              <li>Railway dashboard'ınıza gidin</li>
+              <li>Environment Variables bölümüne gidin</li>
+              <li><code>GOOGLE_REFRESH_TOKEN</code> adında yeni bir variable ekleyin</li>
+              <li>Token değerini yapıştırın</li>
+              <li>Deploy'u yeniden başlatın</li>
+            </ol>
+          </div>
+          
+          <div class="token-box">
+            <strong>GOOGLE_REFRESH_TOKEN:</strong><br>
+            ${data.refresh_token}
+          </div>
+          
+          <div style="text-align: center;">
+            <button class="btn" onclick="navigator.clipboard.writeText('${data.refresh_token}')">📋 Token'ı Kopyala</button>
+          </div>
+          
+          <div class="instructions">
+            <h3>⚠️ Güvenlik Uyarısı:</h3>
+            <p>Bu refresh token'ı kimseyle paylaşmayın ve güvenli tutun. Token'ı Railway environment variables'a ekledikten sonra bu sayfayı kapatabilirsiniz.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+    
+  } catch (error) {
+    console.error('Token alma hatası:', error);
+    res.status(500).send(`Token alma hatası: ${error.message}`);
+  }
+});
+
 // Cron job'ları - günde 4 kez çalışacak
 cron.schedule('0 6 * * *', () => {
   logMessage('⏰ Otomatik otomasyon başlatıldı (06:00)');
